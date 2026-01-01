@@ -1,0 +1,8 @@
+{
+  "name": "AARAA Infrastructure ERP",
+  "description": "A premium, Apple-style enterprise ERP for infrastructure management, featuring role-based dashboards, AI-driven workflows, and secure document handling.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
