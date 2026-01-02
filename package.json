@@ -9,6 +9,6 @@
   },
   "scripts": {
     "start": "node server.js",
-    "build": "mkdir -p dist && cp -r index.html index.tsx App.tsx components pages services types.ts constants.ts metadata.json dist/"
+    "build": "mkdir -p dist && cp index.html index.tsx App.tsx types.ts constants.ts metadata.json dist/ && cp -r components pages services dist/"
   }
 }
