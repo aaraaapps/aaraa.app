@@ -4,7 +4,7 @@ import { AuthContext } from '../App';
 import { 
   Plus, FileText, Image, DollarSign, Filter, Search, CheckCircle, 
   XCircle, Clock, Upload, Cloud, Camera, Zap, Eye, HardDrive, 
-  ShieldCheck, RefreshCw, Smartphone, Monitor, AlertCircle
+  ShieldCheck, RefreshCw, Smartphone, Monitor, AlertCircle, Loader2
 } from 'lucide-react';
 import { Submission, SubmissionStatus } from '../types';
 import { dbService } from '../services/supabase';
@@ -55,7 +55,6 @@ const Submissions: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  // CAMERA LOGIC
   const startCamera = async () => {
     setIsCameraOpen(true);
     setCapturedImage(null);
@@ -103,7 +102,6 @@ const Submissions: React.FC = () => {
     
     setIsUploading(true);
     setUploadProgress(20);
-    // Close camera immediately so user sees the progress modal clearly
     setIsCameraOpen(false);
 
     try {
@@ -130,12 +128,11 @@ const Submissions: React.FC = () => {
       if (error) throw error;
 
       setUploadProgress(100);
-      setSubmissions([data as any, ...submissions]);
+      setSubmissions(prev => [data as any, ...prev]);
       triggerToast("Photo Uploaded to Cloud", true);
     } catch (err: any) {
       triggerToast(err.message || "Cloud Uplink Failed", false);
     } finally {
-      // Delay reset slightly for visual satisfaction of 100% progress
       setTimeout(() => {
         setIsUploading(false);
         setUploadProgress(0);
@@ -171,7 +168,7 @@ const Submissions: React.FC = () => {
       if (error) throw error;
 
       setUploadProgress(100);
-      setSubmissions([data as any, ...submissions]);
+      setSubmissions(prev => [data as any, ...prev]);
       triggerToast("Cloud Uplink Successful", true);
     } catch (err: any) {
       triggerToast(err.message || "Uplink Failed", false);
@@ -186,7 +183,6 @@ const Submissions: React.FC = () => {
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20 animate-in fade-in duration-700">
-      {/* Header Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Site Submissions</h1>
@@ -216,7 +212,6 @@ const Submissions: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-6">
-          {/* Quick Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div onClick={startCamera} className="bg-gradient-to-br from-red-600 to-red-700 p-8 rounded-[40px] text-white apple-shadow group cursor-pointer hover:scale-[1.02] transition-all overflow-hidden relative">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform">
@@ -237,20 +232,6 @@ const Submissions: React.FC = () => {
                    <p className="text-gray-400 text-sm font-medium">Select existing site artifacts</p>
                 </div>
              </div>
-          </div>
-
-          <div className="flex items-center gap-3 mt-8">
-            <div className="relative flex-1 group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-red-600 transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Search repository..." 
-                className="w-full bg-white border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold shadow-sm outline-none focus:ring-4 focus:ring-red-500/5 transition-all" 
-              />
-            </div>
-            <button className="p-4 bg-white rounded-2xl border border-gray-100 text-gray-400 hover:text-gray-900 transition-colors">
-               <Filter className="w-5 h-5" />
-            </button>
           </div>
 
           {loadingData ? (
@@ -287,12 +268,7 @@ const Submissions: React.FC = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <a 
-                      href={sub.url} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-900 hover:text-white transition-all active:scale-90"
-                    >
+                    <a href={sub.url} target="_blank" rel="noreferrer" className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-900 hover:text-white transition-all">
                       <Eye className="w-5 h-5" />
                     </a>
                   </div>
@@ -319,14 +295,10 @@ const Submissions: React.FC = () => {
         <div className="fixed inset-0 bg-black/95 backdrop-blur-2xl z-[250] flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
            <div className="w-full max-w-2xl bg-gray-900 rounded-[50px] overflow-hidden shadow-2xl relative border border-white/10">
               <div className="absolute top-8 left-8 right-8 flex justify-between items-center z-10">
-                <button 
-                  onClick={stopCamera}
-                  className="w-12 h-12 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all"
-                >
+                <button onClick={stopCamera} className="w-12 h-12 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
                   <XCircle className="w-6 h-6" />
                 </button>
               </div>
-
               <div className="aspect-[4/3] bg-black flex items-center justify-center overflow-hidden">
                 {!capturedImage ? (
                   <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover mirror" />
@@ -335,7 +307,6 @@ const Submissions: React.FC = () => {
                 )}
                 <canvas ref={canvasRef} className="hidden" />
               </div>
-
               <div className="p-10 flex items-center justify-center gap-8 bg-gray-900">
                  {!capturedImage ? (
                    <button onClick={takePhoto} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 group active:scale-90 transition-all">
@@ -343,11 +314,43 @@ const Submissions: React.FC = () => {
                    </button>
                  ) : (
                    <div className="flex gap-4 w-full">
-                      <button onClick={() => setCapturedImage(null)} className="flex-1 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl transition-all">
-                        Retake
-                      </button>
-                      <button onClick={uploadCapturedImage} className="flex-[2] bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl transition-all shadow-2xl shadow-red-500/20">
-                        Confirm Uplink
+                      <button onClick={() => setCapturedImage(null)} className="flex-1 bg-white/10 text-white font-black py-4 rounded-2xl">Retake</button>
+                      <button onClick={uploadCapturedImage} className="flex-[2] bg-red-600 text-white font-black py-4 rounded-2xl shadow-2xl shadow-red-500/20">Confirm Uplink</button>
+                   </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* UPLOAD MODAL WITH HARD SAFETY RESET */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-white/70 backdrop-blur-3xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="bg-white w-full max-w-sm p-12 rounded-[60px] shadow-2xl border border-gray-100 text-center space-y-10 animate-in zoom-in duration-500">
+              <div className="relative w-32 h-32 mx-auto">
+                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <circle className="text-gray-100 stroke-current" strokeWidth="6" cx="50" cy="50" r="44" fill="transparent"></circle>
+                    <circle className="text-red-600 stroke-current transition-all duration-500 ease-out" strokeWidth="6" strokeLinecap="round" cx="50" cy="50" r="44" fill="transparent" strokeDasharray="276.5" strokeDashoffset={276.5 - (276.5 * uploadProgress) / 100}></circle>
+                 </svg>
+                 <div className="absolute inset-0 flex items-center justify-center">
+                    <Cloud className="w-10 h-10 text-red-600 animate-pulse" />
+                 </div>
+              </div>
+              <div className="space-y-4">
+                 <h2 className="text-2xl font-black text-gray-900 tracking-tighter">Uplink Active</h2>
+                 <p className="text-gray-400 font-bold uppercase tracking-[0.2em] text-[10px]">Transmitting to aaraa-erp-assets</p>
+                 
+                 {uploadProgress < 100 && (
+                   <div className="pt-6 border-t border-gray-50 flex flex-col items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-3 h-3 text-red-500 animate-spin" />
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">GCS Pipeline Established</span>
+                      </div>
+                      <button 
+                        onClick={() => setIsUploading(false)} 
+                        className="mt-4 px-6 py-2 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-600 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+                      >
+                        Force Dismiss Modal
                       </button>
                    </div>
                  )}
@@ -356,49 +359,6 @@ const Submissions: React.FC = () => {
         </div>
       )}
 
-      {/* Upload Progress Modal - Enhanced Robustness */}
-      {isUploading && (
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-3xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
-           <div className="bg-white w-full max-w-sm p-12 rounded-[60px] shadow-2xl border border-gray-100 text-center space-y-10 animate-in zoom-in duration-500">
-              <div className="relative w-32 h-32 mx-auto">
-                 <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                    <circle className="text-gray-100 stroke-current" strokeWidth="6" cx="50" cy="50" r="44" fill="transparent"></circle>
-                    <circle 
-                      className="text-red-600 stroke-current transition-all duration-500 ease-out" 
-                      strokeWidth="6" 
-                      strokeLinecap="round" 
-                      cx="50" cy="50" r="44" 
-                      fill="transparent" 
-                      strokeDasharray="276.5" 
-                      strokeDashoffset={276.5 - (276.5 * uploadProgress) / 100}
-                    ></circle>
-                 </svg>
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <Cloud className="w-10 h-10 text-red-600 animate-pulse" />
-                 </div>
-              </div>
-              <div className="space-y-4">
-                 <div className="space-y-1">
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tighter">Uplink Active</h2>
-                    <p className="text-gray-400 font-bold uppercase tracking-[0.2em] text-[10px]">Transmitting Artifact</p>
-                 </div>
-                 <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-2">
-                    <ShieldCheck className="w-3 h-3 text-green-500" />
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Target: aaraa-erp-assets</span>
-                 </div>
-              </div>
-              {/* Emergency fallback if it truly hangs */}
-              <button 
-                onClick={() => setIsUploading(false)} 
-                className="text-[9px] font-black text-gray-300 hover:text-red-500 uppercase tracking-widest transition-colors"
-              >
-                Dismiss Overlay
-              </button>
-           </div>
-        </div>
-      )}
-
-      {/* Toast Notification */}
       {showToast.show && (
         <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-4 px-10 py-6 rounded-[35px] shadow-2xl transition-all animate-in slide-in-from-bottom-10 z-[400] border border-white/20 apple-shadow ${
           showToast.success ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
