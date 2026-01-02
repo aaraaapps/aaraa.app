@@ -1,4 +1,3 @@
-
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../App';
 import { 
@@ -181,6 +180,12 @@ const Submissions: React.FC = () => {
     if (e.target) e.target.value = '';
   };
 
+  const forceResetUpload = () => {
+    setIsUploading(false);
+    setUploadProgress(0);
+    triggerToast("Uplink Forcefully Dismissed", false);
+  };
+
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20 animate-in fade-in duration-700">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -347,7 +352,7 @@ const Submissions: React.FC = () => {
                         <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">GCS Pipeline Established</span>
                       </div>
                       <button 
-                        onClick={() => setIsUploading(false)} 
+                        onClick={forceResetUpload} 
                         className="mt-4 px-6 py-2 bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-600 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
                       >
                         Force Dismiss Modal

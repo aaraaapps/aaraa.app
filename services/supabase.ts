@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://vmzgqmdhfrktqdcwutnk.supabase.co';
@@ -66,11 +65,11 @@ export const dbService = {
 
   /**
    * ENTERPRISE GCS UPLOAD FLOW
-   * Fixed "stuck" issue by adding a 35-second abort signal.
+   * Enhanced with strict JSON parsing and network failure detection.
    */
   async uploadToGCS(file: File, path: string) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s hard timeout
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s hard timeout for large files
 
     try {
       const formData = new FormData();
@@ -85,21 +84,28 @@ export const dbService = {
 
       clearTimeout(timeoutId);
 
+      // Handle non-OK responses (e.g., 404, 500)
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+        let errorText = "Unknown Server Error";
+        try {
+          const errorData = await response.json();
+          errorText = errorData.error || errorText;
+        } catch (e) {
+          errorText = `HTTP Error ${response.status}`;
+        }
+        throw new Error(`Uplink Failed: ${errorText}`);
       }
 
       const result = await response.json();
-      if (!result.success) throw new Error(result.error || "Uplink to GCS failed.");
+      if (!result.success) throw new Error(result.error || "GCS Uplink Handshake Failed");
 
       return result.url;
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error("Uplink Timed Out: The cloud cluster did not respond in time.");
+        throw new Error("Uplink Timed Out: The cloud cluster did not respond. Check connection.");
       }
-      console.error("GCS Pipeline Failure:", err);
+      console.error("GCS Pipeline Critical Failure:", err);
       throw err;
     }
   }
