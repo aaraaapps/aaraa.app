@@ -2,7 +2,7 @@
 import React, { useContext } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AuthContext } from '../App';
-import { LayoutDashboard, FileText, CheckCircle2, Settings, Users, Building2, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, CheckCircle2, Settings, Users, Building2, PlusCircle, HardDrive } from 'lucide-react';
 import { LOGO_URL, COLORS } from '../constants';
 import { UserRole } from '../types';
 
@@ -11,7 +11,8 @@ const Sidebar: React.FC = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: [UserRole.USER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
-    { icon: FileText, label: 'My Submissions', path: '/submissions', roles: [UserRole.USER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+    { icon: FileText, label: 'Submissions', path: '/submissions', roles: [UserRole.USER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+    { icon: HardDrive, label: 'Media Vault', path: '/media-vault', roles: [UserRole.USER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { icon: PlusCircle, label: 'Project Creation', path: '/project-creation', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { icon: CheckCircle2, label: 'Approvals', path: '/approvals', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { icon: Building2, label: 'Project Status', path: '/projects', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
@@ -47,10 +48,10 @@ const Sidebar: React.FC = () => {
 
       <div className="p-6 border-t border-gray-50">
         <div className="bg-gradient-to-br from-red-50 to-white rounded-2xl p-4 border border-red-100">
-          <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-1">Company Status</p>
+          <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mb-1">Storage Status</p>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-            <p className="text-xs font-medium">All systems operational</p>
+            <p className="text-xs font-medium">GCS Bucket Connected</p>
           </div>
         </div>
       </div>

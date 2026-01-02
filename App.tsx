@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Submissions from './pages/Submissions';
 import Approvals from './pages/Approvals';
 import ProjectCreationPage from './pages/ProjectCreationPage';
+import MediaVault from './pages/MediaVault';
 import { Employee, UserRole } from './types';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -63,6 +64,7 @@ const App: React.FC = () => {
                   <>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/submissions" element={<Submissions />} />
+                    <Route path="/media-vault" element={<MediaVault />} />
                     <Route path="/project-creation" element={<ProjectCreationPage />} />
                     {user.role !== UserRole.USER && (
                       <Route path="/approvals" element={<Approvals />} />

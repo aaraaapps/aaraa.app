@@ -1,7 +1,11 @@
 
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { AuthContext } from '../App';
-import { Plus, FileText, Image, DollarSign, Filter, Search, CheckCircle, XCircle, Clock, Upload, Cloud, Camera, Zap, Eye } from 'lucide-react';
+import { 
+  Plus, FileText, Image, DollarSign, Filter, Search, CheckCircle, 
+  XCircle, Clock, Upload, Cloud, Camera, Zap, Eye, HardDrive, 
+  ShieldCheck, RefreshCw, Smartphone, Monitor, AlertCircle
+} from 'lucide-react';
 import { Submission, SubmissionStatus } from '../types';
 import { dbService } from '../services/supabase';
 
@@ -13,7 +17,14 @@ const Submissions: React.FC = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [showToast, setShowToast] = useState<{show: boolean, msg: string, success: boolean}>({show: false, msg: '', success: true});
   
+  // Camera State
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -40,82 +51,97 @@ const Submissions: React.FC = () => {
     setTimeout(() => setShowToast(prev => ({ ...prev, show: false })), 4000);
   };
 
-  // Programmatic GCS Integration Test
-  const handleFastGcsTest = async () => {
-    if (!user) return;
+  const handleManualUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  // CAMERA LOGIC
+  const startCamera = async () => {
+    setIsCameraOpen(true);
+    setCapturedImage(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' }, 
+        audio: false 
+      });
+      setCameraStream(stream);
+      if (videoRef.current) videoRef.current.srcObject = stream;
+    } catch (err) {
+      triggerToast("Camera Access Denied", false);
+      setIsCameraOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraOpen(false);
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      setCapturedImage(dataUrl);
+      
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+    }
+  };
+
+  const uploadCapturedImage = async () => {
+    if (!capturedImage || !user) return;
+    
     setIsUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(20);
+    // Close camera immediately so user sees the progress modal clearly
+    setIsCameraOpen(false);
 
     try {
-      // 1. Generate a programmatic test image (Enterprise AI Identity Card)
-      const canvas = document.createElement('canvas');
-      canvas.width = 400;
-      canvas.height = 400;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error("Graphics initialization failed");
-
-      // Draw Apple-style background
-      const gradient = ctx.createLinearGradient(0, 0, 400, 400);
-      gradient.addColorStop(0, '#ed2f39');
-      gradient.addColorStop(1, '#9e1a22');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 400, 400);
-
-      // Add branding
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 40px Inter, Arial';
-      ctx.fillText('AARAA', 40, 80);
-      ctx.font = '24px Inter, Arial';
-      ctx.fillText('Cloud Uplink Test', 40, 120);
-      ctx.fillText(`User: ${user.id}`, 40, 320);
-      ctx.fillText(`Time: ${new Date().toLocaleTimeString()}`, 40, 350);
-      
-      setUploadProgress(30);
-      await new Promise(r => setTimeout(r, 600));
-
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error("Canvas compression failed");
-      
-      const file = new File([blob], `gcs-test-${Date.now()}.png`, { type: "image/png" });
-      const path = `system-tests/${user.id}/${file.name}`;
+      const res = await fetch(capturedImage);
+      const blob = await res.blob();
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const path = `${user.department || 'Site'}/${user.id}/captures/${file.name}`;
       
       setUploadProgress(50);
-      
-      // 2. Transmit to Cloud Storage (Supabase proxying GCS logic)
-      const publicUrl = await dbService.uploadPhoto(file, path);
+      const publicUrl = await dbService.uploadToGCS(file, path);
       setUploadProgress(85);
 
-      // 3. Register in Enterprise Ledger
       const newSubData = {
         employee_id: user.id,
         employee_name: user.name,
         type: 'SITE_PHOTO',
-        title: `GCS Integrator Test: Success`,
+        title: `Site Photo - ${new Date().toLocaleDateString()}`,
         url: publicUrl,
-        status: SubmissionStatus.APPROVED,
-        department: 'System/Test'
+        status: SubmissionStatus.PENDING,
+        department: user.department || 'Site'
       };
 
       const { data, error } = await dbService.createSubmission(newSubData);
       if (error) throw error;
 
       setUploadProgress(100);
+      setSubmissions([data as any, ...submissions]);
+      triggerToast("Photo Uploaded to Cloud", true);
+    } catch (err: any) {
+      triggerToast(err.message || "Cloud Uplink Failed", false);
+    } finally {
+      // Delay reset slightly for visual satisfaction of 100% progress
       setTimeout(() => {
-        setSubmissions([data as any, ...submissions]);
-        triggerToast("GCS Uplink Test: Connection Verified & Logged", true);
         setIsUploading(false);
         setUploadProgress(0);
-      }, 500);
-
-    } catch (err: any) {
-      triggerToast(err.message || "Uplink failure.", false);
-      setIsUploading(false);
-      setUploadProgress(0);
+        setCapturedImage(null);
+      }, 600);
     }
-  };
-
-  const handleManualUpload = () => {
-    fileInputRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,15 +152,16 @@ const Submissions: React.FC = () => {
     setUploadProgress(10);
 
     try {
-      const path = `${user.id}/${Date.now()}-${file.name}`;
-      const publicUrl = await dbService.uploadPhoto(file, path);
-      setUploadProgress(70);
+      const path = `${user.department || 'Unsorted'}/${user.id}/uploads/${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
+      setUploadProgress(40);
+      const publicUrl = await dbService.uploadToGCS(file, path);
+      setUploadProgress(80);
 
       const newSubData = {
         employee_id: user.id,
         employee_name: user.name,
-        type: 'SITE_PHOTO',
-        title: `Site Photo: ${file.name}`,
+        type: file.type.includes('image') ? 'SITE_PHOTO' : 'BILL',
+        title: file.name,
         url: publicUrl,
         status: SubmissionStatus.PENDING,
         department: user.department || 'Site'
@@ -144,16 +171,15 @@ const Submissions: React.FC = () => {
       if (error) throw error;
 
       setUploadProgress(100);
+      setSubmissions([data as any, ...submissions]);
+      triggerToast("Cloud Uplink Successful", true);
+    } catch (err: any) {
+      triggerToast(err.message || "Uplink Failed", false);
+    } finally {
       setTimeout(() => {
-        setSubmissions([data as any, ...submissions]);
-        triggerToast("Cloud upload successful", true);
         setIsUploading(false);
         setUploadProgress(0);
-      }, 500);
-    } catch (err: any) {
-      triggerToast(err.message || "Upload failed", false);
-      setIsUploading(false);
-      setUploadProgress(0);
+      }, 600);
     }
     if (e.target) e.target.value = '';
   };
@@ -163,97 +189,111 @@ const Submissions: React.FC = () => {
       {/* Header Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Submissions</h1>
-          <p className="text-gray-500 font-medium mt-1">Manage project artifacts and compliance documents</p>
+          <h1 className="text-4xl font-black text-gray-900 tracking-tighter">Site Submissions</h1>
+          <p className="text-gray-500 font-medium mt-1">Target Cluster: <span className="text-red-600 font-bold">aaraa-erp-assets</span></p>
         </div>
         <div className="flex items-center gap-3">
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
           
           <button 
-            onClick={handleFastGcsTest}
-            disabled={isUploading}
-            className="flex items-center gap-2 bg-white border border-gray-200 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:border-red-200 transition-all active:scale-95 disabled:opacity-50"
+            onClick={startCamera}
+            className="group flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all"
           >
-            <Zap className="w-4 h-4 text-red-600" />
-            Fast GCS Test
+            <Camera className="w-5 h-5 text-red-500" />
+            Capture Photo
           </button>
           
           <button 
             onClick={handleManualUpload}
             disabled={isUploading}
-            className="flex items-center gap-2 bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-red-500/20 active:scale-95 transition-all disabled:opacity-50"
+            className="group flex items-center gap-3 bg-red-600 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-red-500/30 active:scale-95 transition-all disabled:opacity-50"
           >
-            <Camera className="w-4 h-4" />
-            Capture Photo
+            <Cloud className="w-5 h-5 group-hover:animate-bounce" />
+            Upload File
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Main List */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center gap-3">
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div onClick={startCamera} className="bg-gradient-to-br from-red-600 to-red-700 p-8 rounded-[40px] text-white apple-shadow group cursor-pointer hover:scale-[1.02] transition-all overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform">
+                   <Camera className="w-24 h-24" />
+                </div>
+                <div className="relative z-10">
+                  <Smartphone className="w-8 h-8 mb-4 text-red-200" />
+                  <h3 className="text-xl font-black tracking-tight">Live Site Capture</h3>
+                  <p className="text-red-100 text-sm mt-1 font-medium">Auto-sync to cloud storage</p>
+                </div>
+             </div>
+             <div onClick={handleManualUpload} className="bg-white p-8 rounded-[40px] border border-gray-100 apple-shadow group cursor-pointer hover:bg-gray-50 transition-all flex items-center gap-6">
+                <div className="w-16 h-16 bg-blue-50 rounded-3xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <div>
+                   <h3 className="text-xl font-black text-gray-900 tracking-tight">Manual Upload</h3>
+                   <p className="text-gray-400 text-sm font-medium">Select existing site artifacts</p>
+                </div>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-3 mt-8">
             <div className="relative flex-1 group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-red-600 transition-colors" />
               <input 
                 type="text" 
-                placeholder="Search by ID or Title..." 
+                placeholder="Search repository..." 
                 className="w-full bg-white border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold shadow-sm outline-none focus:ring-4 focus:ring-red-500/5 transition-all" 
               />
             </div>
-            <button className="p-4 bg-white rounded-2xl text-gray-400 hover:bg-gray-900 hover:text-white shadow-sm border border-gray-100 transition-all active:scale-90">
-              <Filter className="w-5 h-5" />
+            <button className="p-4 bg-white rounded-2xl border border-gray-100 text-gray-400 hover:text-gray-900 transition-colors">
+               <Filter className="w-5 h-5" />
             </button>
           </div>
 
           {loadingData ? (
             <div className="p-32 text-center space-y-4">
               <div className="w-12 h-12 border-4 border-red-50 border-t-red-600 rounded-full animate-spin mx-auto"></div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Syncing Records</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Synchronizing Records</p>
             </div>
           ) : submissions.length === 0 ? (
-            <div className="bg-white p-24 rounded-[50px] border-2 border-dashed border-gray-100 text-center">
+            <div className="bg-white p-24 rounded-[50px] border border-gray-100 text-center apple-shadow">
                <div className="w-24 h-24 bg-gray-50 rounded-[40px] flex items-center justify-center mx-auto mb-8 shadow-inner">
-                  <Cloud className="w-10 h-10 text-gray-300" />
+                  <HardDrive className="w-10 h-10 text-gray-300" />
                </div>
-               <h2 className="text-2xl font-black text-gray-900 tracking-tight">Vault is Empty</h2>
-               <p className="text-gray-400 font-medium mt-3 max-w-xs mx-auto">Perform a Fast GCS Test to verify the integration now.</p>
+               <h2 className="text-2xl font-black text-gray-900 tracking-tight">Repository Empty</h2>
+               <p className="text-gray-400 font-medium mt-3 max-w-xs mx-auto">No artifacts found in aaraa-erp-assets.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {submissions.map((sub) => (
-                <div key={sub.id} className="bg-white p-6 rounded-[40px] border border-gray-100 apple-shadow flex items-center gap-6 group hover:scale-[1.02] transition-all duration-500">
-                  <div className={`w-20 h-20 rounded-[30px] flex items-center justify-center flex-shrink-0 shadow-inner ${
+                <div key={sub.id} className="bg-white p-6 rounded-[40px] border border-gray-100 apple-shadow flex items-center gap-6 group hover:scale-[1.01] transition-all">
+                  <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center flex-shrink-0 shadow-inner ${
                     sub.type === 'BILL' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'
                   }`}>
-                    {sub.type === 'BILL' ? <DollarSign className="w-8 h-8" /> : <Camera className="w-8 h-8" />}
+                    {sub.type === 'BILL' ? <DollarSign className="w-6 h-6" /> : <Image className="w-6 h-6" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{sub.department}</span>
                       <span className="w-1 h-1 rounded-full bg-gray-200"></span>
-                      <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">{sub.type}</span>
+                      <Cloud className="w-3 h-3 text-red-500" />
                     </div>
-                    <h3 className="text-xl font-black text-gray-900 truncate tracking-tight">{sub.title}</h3>
-                    <p className="text-xs text-gray-400 font-bold mt-1">
-                      Uploaded {new Date(sub.created_at).toLocaleString()}
+                    <h3 className="text-lg font-black text-gray-900 truncate tracking-tight">{sub.title}</h3>
+                    <p className="text-xs text-gray-400 font-bold">
+                      {new Date(sub.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className={`hidden sm:flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest ${
-                      sub.status === SubmissionStatus.APPROVED ? 'bg-green-50 text-green-600' :
-                      sub.status === SubmissionStatus.REJECTED ? 'bg-red-50 text-red-600' :
-                      'bg-orange-50 text-orange-600'
-                    }`}>
-                      {sub.status}
-                    </div>
                     <a 
                       href={sub.url} 
                       target="_blank" 
                       rel="noreferrer" 
-                      className="w-14 h-14 rounded-3xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-900 hover:text-white transition-all active:scale-90"
+                      className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 hover:bg-gray-900 hover:text-white transition-all active:scale-90"
                     >
-                      <Eye className="w-6 h-6" />
+                      <Eye className="w-5 h-5" />
                     </a>
                   </div>
                 </div>
@@ -262,43 +302,69 @@ const Submissions: React.FC = () => {
           )}
         </div>
 
-        {/* Sidebar Info */}
         <div className="space-y-8">
           <div className="bg-white p-10 rounded-[50px] border border-gray-100 apple-shadow space-y-8">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Infrastructure</h2>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Storage Cluster</h2>
             <div className="space-y-6">
-              <InfoItem icon={Cloud} title="GCS Gateway" desc="Regional endpoint active (asia-south1)" status="Online" />
-              <InfoItem icon={Upload} title="Traffic" desc="Encrypted SSL/TLS transmission active" status="Secure" />
-              <InfoItem icon={Zap} title="AI Processing" desc="Auto-tagging and OCR analysis enabled" status="Active" />
-            </div>
-          </div>
-          
-          <div className="bg-gray-900 p-10 rounded-[50px] text-white apple-shadow relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/20 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
-            <h3 className="text-xl font-black tracking-tight mb-4 flex items-center gap-2">
-              <Cloud className="w-5 h-5 text-red-500" />
-              Cloud Sync
-            </h3>
-            <p className="text-gray-400 text-sm leading-relaxed font-medium mb-6">
-              Your site artifacts are instantly replicated across global nodes for zero-loss redundancy.
-            </p>
-            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 p-4 rounded-2xl border border-red-500/20">
-               <span>Integrity Check</span>
-               <span>Passed</span>
+              <InfoItem icon={Cloud} title="Bucket Name" desc="aaraa-erp-assets" status="Live" />
+              <InfoItem icon={ShieldCheck} title="Protocol" desc="Standard Regional Storage" status="Secured" />
+              <InfoItem icon={Zap} title="Throughput" desc="Edge Delivery Enabled" status="Optimal" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Premium Upload Modal */}
+      {/* CAMERA MODAL */}
+      {isCameraOpen && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-2xl z-[250] flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="w-full max-w-2xl bg-gray-900 rounded-[50px] overflow-hidden shadow-2xl relative border border-white/10">
+              <div className="absolute top-8 left-8 right-8 flex justify-between items-center z-10">
+                <button 
+                  onClick={stopCamera}
+                  className="w-12 h-12 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="aspect-[4/3] bg-black flex items-center justify-center overflow-hidden">
+                {!capturedImage ? (
+                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover mirror" />
+                ) : (
+                  <img src={capturedImage} className="w-full h-full object-cover" alt="Captured" />
+                )}
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+
+              <div className="p-10 flex items-center justify-center gap-8 bg-gray-900">
+                 {!capturedImage ? (
+                   <button onClick={takePhoto} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center p-1 group active:scale-90 transition-all">
+                     <div className="w-full h-full bg-white rounded-full group-hover:scale-95 transition-transform" />
+                   </button>
+                 ) : (
+                   <div className="flex gap-4 w-full">
+                      <button onClick={() => setCapturedImage(null)} className="flex-1 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl transition-all">
+                        Retake
+                      </button>
+                      <button onClick={uploadCapturedImage} className="flex-[2] bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl transition-all shadow-2xl shadow-red-500/20">
+                        Confirm Uplink
+                      </button>
+                   </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Upload Progress Modal - Enhanced Robustness */}
       {isUploading && (
-        <div className="fixed inset-0 bg-white/40 backdrop-blur-3xl z-[200] flex items-center justify-center p-6 animate-in fade-in duration-500">
-           <div className="bg-white w-full max-w-sm p-12 rounded-[60px] shadow-2xl border border-gray-100 text-center space-y-10 animate-in zoom-in duration-700">
+        <div className="fixed inset-0 bg-white/60 backdrop-blur-3xl z-[300] flex items-center justify-center p-6 animate-in fade-in duration-300">
+           <div className="bg-white w-full max-w-sm p-12 rounded-[60px] shadow-2xl border border-gray-100 text-center space-y-10 animate-in zoom-in duration-500">
               <div className="relative w-32 h-32 mx-auto">
                  <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                    <circle className="text-gray-50 stroke-current" strokeWidth="6" cx="50" cy="50" r="44" fill="transparent"></circle>
+                    <circle className="text-gray-100 stroke-current" strokeWidth="6" cx="50" cy="50" r="44" fill="transparent"></circle>
                     <circle 
-                      className="text-red-600 stroke-current transition-all duration-700 ease-out" 
+                      className="text-red-600 stroke-current transition-all duration-500 ease-out" 
                       strokeWidth="6" 
                       strokeLinecap="round" 
                       cx="50" cy="50" r="44" 
@@ -311,25 +377,33 @@ const Submissions: React.FC = () => {
                     <Cloud className="w-10 h-10 text-red-600 animate-pulse" />
                  </div>
               </div>
-              <div className="space-y-2">
-                 <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Uplink Active</h2>
-                 <p className="text-gray-400 font-bold uppercase tracking-[0.2em] text-[10px]">
-                   {uploadProgress < 100 ? 'Transmitting to Cloud Storage' : 'Synchronizing Ledger'}
-                 </p>
+              <div className="space-y-4">
+                 <div className="space-y-1">
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tighter">Uplink Active</h2>
+                    <p className="text-gray-400 font-bold uppercase tracking-[0.2em] text-[10px]">Transmitting Artifact</p>
+                 </div>
+                 <div className="pt-6 border-t border-gray-50 flex items-center justify-center gap-2">
+                    <ShieldCheck className="w-3 h-3 text-green-500" />
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Target: aaraa-erp-assets</span>
+                 </div>
               </div>
-              <div className="h-1.5 w-full bg-gray-50 rounded-full overflow-hidden">
-                 <div className="h-full bg-red-600 transition-all duration-700" style={{ width: `${uploadProgress}%` }}></div>
-              </div>
+              {/* Emergency fallback if it truly hangs */}
+              <button 
+                onClick={() => setIsUploading(false)} 
+                className="text-[9px] font-black text-gray-300 hover:text-red-500 uppercase tracking-widest transition-colors"
+              >
+                Dismiss Overlay
+              </button>
            </div>
         </div>
       )}
 
       {/* Toast Notification */}
       {showToast.show && (
-        <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-4 px-10 py-6 rounded-[35px] shadow-2xl transition-all animate-in slide-in-from-bottom-10 z-[300] border border-white/20 apple-shadow ${
+        <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-4 px-10 py-6 rounded-[35px] shadow-2xl transition-all animate-in slide-in-from-bottom-10 z-[400] border border-white/20 apple-shadow ${
           showToast.success ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
         }`}>
-          {showToast.success ? <CheckCircle className="w-6 h-6 text-green-400" /> : <XCircle className="w-6 h-6" />}
+          {showToast.success ? <CheckCircle className="w-6 h-6 text-green-400" /> : <AlertCircle className="w-6 h-6" />}
           <span className="text-sm font-black tracking-tight uppercase tracking-widest">{showToast.msg}</span>
         </div>
       )}
@@ -347,7 +421,7 @@ const InfoItem = ({ icon: Icon, title, desc, status }: any) => (
         <h4 className="text-sm font-black text-gray-900 tracking-tight">{title}</h4>
         <span className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase">{status}</span>
       </div>
-      <p className="text-xs text-gray-500 font-medium leading-relaxed">{desc}</p>
+      <p className="text-xs text-gray-500 font-medium">{desc}</p>
     </div>
   </div>
 );

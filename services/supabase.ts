@@ -64,23 +64,43 @@ export const dbService = {
     return await supabase.from('projects').select('*').order('created_at', { ascending: false });
   },
 
-  // Simulating GCS via Supabase Storage for the test upload
-  async uploadPhoto(file: File, path: string) {
-    // In a real GCS environment, we would use the Google Cloud SDK or a signed URL.
-    // Here we use the existing Supabase infrastructure to provide a working 'Cloud Storage' experience.
-    const { data, error } = await supabase.storage
-      .from('submissions')
-      .upload(path, file, {
-        cacheControl: '3600',
-        upsert: false
+  /**
+   * ENTERPRISE GCS UPLOAD FLOW
+   * Fixed "stuck" issue by adding a 35-second abort signal.
+   */
+  async uploadToGCS(file: File, path: string) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s hard timeout
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', path);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal
       });
-    
-    if (error) throw error;
-    
-    const { data: publicUrlData } = supabase.storage
-      .from('submissions')
-      .getPublicUrl(data.path);
-      
-    return publicUrlData.publicUrl;
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      if (!result.success) throw new Error(result.error || "Uplink to GCS failed.");
+
+      return result.url;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error("Uplink Timed Out: The cloud cluster did not respond in time.");
+      }
+      console.error("GCS Pipeline Failure:", err);
+      throw err;
+    }
   }
 };
